@@ -62,7 +62,7 @@ func (fse *FSEntry) Details() string {
 		details = fmt.Sprintf(
 			"%v „%v“ (ТДД %v, %v, родитељ: %v, сума: %x),",
 			humanReadableFileType(fse.Type),
-			string(fse.Name),
+			string(bytes.TrimRight(fse.Name, "\x00")),
 			fse.FATEntry,
 			HumanReadableUnit(float64(fse.Size)),
 			fse.ParentEntry,

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
 )
 
 var BOOTLOADER_SIZE = 4096
@@ -173,7 +174,7 @@ func (fs *Filesystem) ReadSuperBlock() error {
 	if err != nil {
 		return fmt.Errorf("не могу прочитати етикету: %v", err)
 	}
-	fs.SuperBlock.Label = string(bufferLabel)
+	fs.SuperBlock.Label = strings.TrimRight(string(bufferLabel), "\x00")
 
 	return nil
 }
