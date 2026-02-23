@@ -44,7 +44,7 @@ func (fs *Filesystem) ShowBootloader() {
 		fmt.Println("подизач система није уписан.")
 	} else {
 		fmt.Printf(
-			"%v/512 бајта у првом сектору, %v/%v укупно заузето.\n",
+			"%v/512 бајтова у првом сектору, %v/%v укупно заузето.\n",
 			bootSectorUsedBytes, bootTotalUsedBytes, BOOTLOADER_SIZE,
 		)
 	}
