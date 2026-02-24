@@ -20,6 +20,44 @@ JSDAT-1 is a custom file system with the following on-disk layout:
 +-----------------------------------+
 ```
 
+## Building
+
+**1. Install Go**
+
+- **Linux**: use your distro's package manager or follow the instructions at https://go.dev/dl/
+  ```bash
+  # Fedora
+  sudo dnf install golang
+  # Ubuntu/Debian
+  sudo apt install golang-go
+  ```
+- **macOS**: install via Homebrew or download from https://go.dev/dl/
+  ```bash
+  brew install go
+  ```
+- **Windows**: download and run the installer from https://go.dev/dl/
+
+**2. Build**
+
+Inside the project directory run:
+
+```bash
+go build
+```
+
+This produces a `datotekomat` binary (or `datotekomat.exe` on Windows) in the current directory.
+
+**3. Run**
+
+Either invoke it directly:
+
+```bash
+./datotekomat        # Linux/macOS
+.\datotekomat.exe    # Windows
+```
+
+Or move it somewhere on your `PATH` (e.g. `/usr/local/bin` on Linux/macOS) to call it as just `datotekomat` from anywhere.
+
 ## Default Configuration
 
 | Parameter         | Default     | Flag   |
@@ -260,6 +298,44 @@ Time format: `dd.mm.yyyy-hh:mm:ss`.
 |   Податковна област (н x сектор)  | - Стварни садржај датотека
 +-----------------------------------+
 ```
+
+## Градња
+
+**1. Инсталација Go-а**
+
+- **Linux**: преко управника пакета дистрибуције или пратећи упутства са https://go.dev/dl/
+  ```bash
+  # Федора
+  sudo dnf install golang
+  # Убунту/Дебијан
+  sudo apt install golang-go
+  ```
+- **macOS**: преко Homebrew-а или преузимањем са https://go.dev/dl/
+  ```bash
+  brew install go
+  ```
+- **Windows**: преузети и покренути инсталациони програм са https://go.dev/dl/
+
+**2. Градња**
+
+У директоријуму пројекта покренути:
+
+```bash
+go build
+```
+
+Резултат је извршна датотека `datotekomat` (или `datotekomat.exe` на Windows-у) у тренутном директоријуму.
+
+**3. Покретање**
+
+Директно из директоријума:
+
+```bash
+./datotekomat        # Linux/macOS
+.\datotekomat.exe    # Windows
+```
+
+Или преместити у путању претраге (`PATH`). Нпр. `/usr/local/bin` на Linux/macOS ради позивања са било ког места као `datotekomat`.
 
 ## Подразумевана подешавања
 
