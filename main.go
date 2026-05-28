@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kostich/datotekomat/sfat"
+	"golang.org/x/term"
 )
 
 type config struct {
@@ -74,6 +75,10 @@ func main() {
 		runCopyIn(subcmdArgs)
 	case "кпс": // kps (kopiraj spolja), copy a file from fs to host
 		runCopyOut(subcmdArgs)
+	case "кшу": // kšu (kopiraj šifrovano unutra), copy a file in as encrypted
+		runCopyEncIn(subcmdArgs)
+	case "кшс": // kšs (kopiraj šifrovano spolja), decrypt and copy a file out
+		runCopyEncOut(subcmdArgs)
 	case "лс": // ls (listaj), list files
 		runList(subcmdArgs)
 	case "пнј": // pnj (preimenuj), rename
@@ -139,6 +144,70 @@ func runCopyOut(args []string) {
 		printError(fmt.Errorf("потребни: <унутрашња путања> <спољна путања> <систем датотека>"))
 	}
 	copyFileOut(args[0], args[1], args[2])
+}
+
+func runCopyEncIn(args []string) {
+	if len(args) < 3 {
+		printError(fmt.Errorf("потребни: <датотека> <унутрашња путања> <систем датотека>"))
+	}
+	// Confirm prompt for write: a typo on encryption is unrecoverable.
+	lozinka, err := promptPassphraseWithConfirm()
+	if err != nil {
+		printError(err)
+	}
+	copyEncryptedFileIn(args[0], args[1], args[2], lozinka)
+}
+
+func runCopyEncOut(args []string) {
+	if len(args) < 3 {
+		printError(fmt.Errorf("потребни: <унутрашња путања> <спољна путања> <систем датотека>"))
+	}
+	// Single prompt for read: a wrong password just fails AEAD, no data
+	// loss, so no need to ask twice.
+	lozinka, err := promptPassphrase("Лозинка за дешифровање: ")
+	if err != nil {
+		printError(err)
+	}
+	copyEncryptedFileOut(args[0], args[1], args[2], lozinka)
+}
+
+// promptPassphrase reads a passphrase from the terminal without echo.
+// Refuses to operate on a non-TTY stdin: piping a password through stdin
+// would defeat the whole reason we don't accept it via flag or env.
+// An empty string is rejected before scrypt does any work, pressing
+// Enter accidentally must not encrypt a file with key = scrypt("").
+func promptPassphrase(prompt string) (string, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", fmt.Errorf("лозинка се уноси интерактивно, покрените команду у терминалу")
+	}
+	fmt.Fprint(os.Stderr, prompt)
+	b, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		return "", fmt.Errorf("не могу прочитати лозинку: %v", err)
+	}
+	if len(b) == 0 {
+		return "", fmt.Errorf("празна лозинка није дозвољена")
+	}
+	return string(b), nil
+}
+
+// promptPassphraseWithConfirm asks twice and verifies the entries match.
+// Used only on кшу, encryption is one-way, a mistyped passphrase would
+// permanently lock the file.
+func promptPassphraseWithConfirm() (string, error) {
+	first, err := promptPassphrase("Лозинка за шифровање: ")
+	if err != nil {
+		return "", err
+	}
+	second, err := promptPassphrase("Поновите лозинку: ")
+	if err != nil {
+		return "", err
+	}
+	if first != second {
+		return "", fmt.Errorf("лозинке се не подударају")
+	}
+	return first, nil
 }
 
 func runList(args []string) {
@@ -239,6 +308,8 @@ func printHelp() {
 	fmt.Println("  осб <систем датотека>                                    	- приказ особина")
 	fmt.Println("  кпу <датотека> <унутрашња путања> <систем датотека>     	- копирање унутар")
 	fmt.Println("  кпс <унутрашња путања> <спољна путања> <систем датотека>	- копирање споља")
+	fmt.Println("  кшу <датотека> <унутрашња путања> <систем датотека>     	- шифровано копирање унутар (пита за лозинку)")
+	fmt.Println("  кшс <унутрашња путања> <спољна путања> <систем датотека>	- шифровано копирање споља (пита за лозинку)")
 	fmt.Println("  лс <путања> <систем датотека>                           	- листање садржаја")
 	fmt.Println("  стабло <путања> <систем датотека>                      	- приказ стабла")
 	fmt.Println("  пнј <путања> <нови назив> <систем датотека>             	- преименовање")
@@ -252,6 +323,11 @@ func printHelp() {
 	fmt.Println("  врм <путања> <ознака> <време> <систем датотека>       	- промена времена")
 	fmt.Println("    ознака: н (настанак), и (измена), п (приступ)")
 	fmt.Println("    време: дд.мм.гггг-чч:мм:сс")
+	fmt.Println()
+	fmt.Println("Шифровање:")
+	fmt.Println("  - „кшу“ и „кшс“ траже лозинку интерактивно (без -л и без променљивих окружења)")
+	fmt.Println("  - захтева бар 512 бајтова по сектору (-бпс 512 при форматирању)")
+	fmt.Println("  - све остале наредбе (лс, обш, пнј, прист, иб, врм) раде на шифрованим ставкама без лозинке")
 }
 
 func printVerbose(txt string) {
@@ -397,6 +473,27 @@ func copyFileOut(internalPath, externalPath, fsPath string) {
 	printVerbose(fmt.Sprintf("копирам датотеку \"%v\" из система датотека \"%v\"", internalPath, fsPath))
 
 	if err := sfat.CopyFileOut(internalPath, externalPath, fsPath); err != nil {
+		printError(err)
+	}
+}
+
+func copyEncryptedFileIn(filePath, folderPath, fsPath, passphrase string) {
+	// NB: never include `passphrase` in any printed string, even under -в.
+	printVerbose(fmt.Sprintf("шифрујем и копирам датотеку \"%v\" у систем датотека \"%v\"", filePath, fsPath))
+
+	timestamp := sfat.TimeToBytes(time.Now())
+	if cfg.testTime {
+		timestamp = sfat.TestTimestamp
+	}
+	if err := sfat.CopyEncryptedFileIn(filePath, folderPath, fsPath, passphrase, timestamp); err != nil {
+		printError(err)
+	}
+}
+
+func copyEncryptedFileOut(internalPath, externalPath, fsPath, passphrase string) {
+	printVerbose(fmt.Sprintf("дешифрујем и копирам датотеку \"%v\" из система датотека \"%v\"", internalPath, fsPath))
+
+	if err := sfat.CopyEncryptedFileOut(internalPath, externalPath, fsPath, passphrase); err != nil {
 		printError(err)
 	}
 }

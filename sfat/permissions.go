@@ -72,6 +72,10 @@ func (fs *Filesystem) ChangeEntryMode(filePath, mode string) error {
 	}
 
 	entryNo, err := fs.FindFSEntryNumber(filePath, desiredType)
+	if err != nil && desiredType == TYPE_FILE {
+		// try encrypted file before link, same path syntax (no trailing /).
+		entryNo, err = fs.FindFSEntryNumber(filePath, TYPE_ENCRYPTED)
+	}
 	if err != nil {
 		// maybe it's a link?
 		_, err = fs.FindFSEntryNumber(filePath, TYPE_LINK)
@@ -115,6 +119,10 @@ func (fs *Filesystem) ChangeTimestamp(entryPath string, which string, newTime ti
 	}
 
 	entryNo, err := fs.FindFSEntryNumber(entryPath, desiredType)
+	if err != nil && desiredType == TYPE_FILE {
+		// try encrypted file before link.
+		entryNo, err = fs.FindFSEntryNumber(entryPath, TYPE_ENCRYPTED)
+	}
 	if err != nil {
 		// try link
 		entryNo, err = fs.FindFSEntryNumber(entryPath, TYPE_LINK)
@@ -151,6 +159,10 @@ func (fs *Filesystem) ChangeUIDGID(filePath, id string) error {
 	}
 
 	entryNo, err := fs.FindFSEntryNumber(filePath, desiredType)
+	if err != nil && desiredType == TYPE_FILE {
+		// try encrypted file too.
+		entryNo, err = fs.FindFSEntryNumber(filePath, TYPE_ENCRYPTED)
+	}
 	if err != nil {
 		return fmt.Errorf("не могу наћи ставку зарад КИБ/ГИБ промене: %v", err)
 	}

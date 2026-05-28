@@ -242,6 +242,8 @@ func (fs *Filesystem) ListEntries(path string) error {
 				etype = "ф" // f (fascikla), folder
 			case TYPE_LINK:
 				etype = "в" // v (veza), link
+			case TYPE_ENCRYPTED:
+				etype = "ш" // š (šifrovana datoteka), encrypted file
 			default:
 				etype = "?" // unknown (probably an error)
 			}
@@ -419,8 +421,12 @@ func (fs *Filesystem) RenameEntry(oldPath, newFilename string) error {
 		return fmt.Errorf("одредишна ставка већ постоји")
 	}
 
-	// rename the folder or a file
-	fsEntryNo, err := fs.FindFSEntryNumber(oldPath, desiredType)
+	// rename the folder or a file. Use TYPE_ANY for the source lookup so
+	// that this single code path covers TYPE_FILE, TYPE_ENCRYPTED, and
+	// TYPE_LINK without a cascade of fallbacks. The trailing-slash check
+	// above still gates folder-vs-non-folder semantics for the caller
+	// (via the entryDeleted branch error message).
+	fsEntryNo, err := fs.FindFSEntryNumber(oldPath, TYPE_ANY)
 	if err != nil {
 		return err
 	}
@@ -468,6 +474,12 @@ func (fs *Filesystem) DeleteEntry(filePath string) error {
 
 	// get the fs index
 	fsEntryNo, err := fs.FindFSEntryNumber(filePath, desiredType)
+	if err != nil && desiredType == TYPE_FILE {
+		// try encrypted file before falling back to link, since both share
+		// the "no trailing slash" convention with regular files.
+		desiredType = TYPE_ENCRYPTED
+		fsEntryNo, err = fs.FindFSEntryNumber(filePath, desiredType)
+	}
 	if err != nil {
 		// try to find the fsentry for a link instead and err out if that fails as well
 		desiredType = TYPE_LINK
@@ -489,6 +501,8 @@ func (fs *Filesystem) DeleteEntry(filePath string) error {
 		switch desiredType {
 		case TYPE_FILE:
 			return fmt.Errorf("неисправан назив датотеке")
+		case TYPE_ENCRYPTED:
+			return fmt.Errorf("неисправан назив шифроване датотеке")
 		case TYPE_FOLDER:
 			return fmt.Errorf("неисправан назив фасцикле")
 		case TYPE_LINK:
