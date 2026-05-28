@@ -13,7 +13,7 @@ import (
 // Treat as a constant, never append onto its backing array, copy first.
 var EncMagic = []byte{0xD0, 0xA8, 0xD0, 0xA4}
 
-// On-disk blob layout (see FORMAT.md):
+// On-disk blob layout (see ENCRYPTION.md):
 //
 //	off  size  field
 //	  0    4   magic ("ШФ")

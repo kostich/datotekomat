@@ -153,7 +153,7 @@ passphrase.
 # → Лозинка за дешифровање: ******
 ```
 
-See [`FORMAT.md`](./FORMAT.md) for the exact on-disk layout and a golden
+See [`ENCRYPTION.md`](./ENCRYPTION.md) for the exact on-disk layout and a golden
 test vector you can use to port the decoder to another language.
 
 For a step-by-step live demo (format, plain vs encrypted copy, verify on
@@ -308,7 +308,7 @@ Time format: `dd.mm.yyyy-hh:mm:ss`.
 - **No fragmentation management**, journaling, or compression
 - **Encryption is selective** (per-file, like eCryptfs), not whole-volume.
   Filenames, sizes, timestamps and permissions remain visible, see
-  threat model in [`FORMAT.md`](./FORMAT.md). Encryption requires
+  threat model in [`ENCRYPTION.md`](./ENCRYPTION.md). Encryption requires
   `BytesPerSector >= 512`.
 - **No atomicity guarantee** across superblock / FAT / FSEntry writes
   (pre-existing for `кпу`/`кшу`): a crash mid-copy may leave a small
@@ -480,7 +480,7 @@ p=1), шифрује XChaCha20-Poly1305 и складишти самоописн
 ```
 
 Тачан распоред бајтова на диску и златни тест вектор описани су у
-[`FORMAT.md`](./FORMAT.md), довољно за пренос декодера у други језик.
+[`ENCRYPTION.md`](./ENCRYPTION.md), довољно за пренос декодера у други језик.
 
 За живи приказ корак по корак (форматирање, обична и шифрована датотека,
 провера на диску) погледајте [`../test/setup.txt`](../test/setup.txt).
@@ -634,8 +634,7 @@ p=1), шифрује XChaCha20-Poly1305 и складишти самоописн
 - **Без управљања фрагментацијом**, журнала или компресије
 - **Шифровање је селективно** (на нивоу датотеке, попут eCryptfs-а), не
   целог тома. Називи, величине, временске ознаке и овлашћења остају
-  видљиви, модел претње описан у [`FORMAT.md`](./FORMAT.md).
-  Шифровање захтева `Бајтова по сектору >= 512`.
+  видљиви. Шифровање захтева `Бајтова по сектору >= 512`.
 - **Без гаранције атомичности** упис(а) супер-блока / ТДД / СД ставке
   (важи и за `кпу` и за `кшу`): пад у току копирања може оставити малу
   неконзистентност. `fsck` алат није у понуди.

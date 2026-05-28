@@ -8,7 +8,7 @@ import (
 
 // goldenSalt and goldenNonce are reused across the deterministic tests.
 // Picking obviously-fake values (0x01..0x10 / 0x10..0x27) makes the hex
-// dumps in FORMAT.md self-describing.
+// dumps in ENCRYPTION.md self-describing.
 var (
 	goldenSalt  = mustDecodeHex("0102030405060708090a0b0c0d0e0f10")
 	goldenNonce = mustDecodeHex("101112131415161718191a1b1c1d1e1f2021222324252627")
@@ -180,7 +180,7 @@ func TestEncblob_MagicNotMutated(t *testing.T) {
 }
 
 // TestEncblob_MinBPS is a tiny smoke test pinning the 512 B policy; if this
-// changes the FORMAT.md note and CLI gate must change together.
+// changes the ENCRYPTION.md note and CLI gate must change together.
 func TestEncblob_MinBPS(t *testing.T) {
 	if got := MinBytesPerSectorForEncryption(); got != 512 {
 		t.Fatalf("очекивано 512, добијено %d", got)
