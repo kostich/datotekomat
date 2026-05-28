@@ -121,6 +121,110 @@ func (da *DataArea) WriteEntry(fs *Filesystem, fatEntryNo uint32, sourcePath str
 	return nil
 }
 
+// ReadFATData reads exactly `size` bytes starting from the FAT chain rooted
+// at fatEntryNo. The last sector in the chain may contain stale or padding
+// bytes; only the first `size` bytes overall are returned. Returns an error
+// if the chain is shorter than requested.
+//
+// Used by the encrypted path (кшс) where `size` == FSEntry.Size == blob
+// length; an exact size lets us drop the AEAD-incompatible padding without
+// any plaintext-length leakage.
+func (da *DataArea) ReadFATData(fs *Filesystem, fatEntryNo uint32, size uint32) ([]byte, error) {
+	chain, err := fs.FileAllocationTable.GetEntryChain(fatEntryNo, fs.Path, fs.SuperBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	bps := int(fs.SuperBlock.BytesPerSector)
+	if uint64(len(chain))*uint64(bps) < uint64(size) {
+		return nil, fmt.Errorf(
+			"ТДД ланац (%d сектора пута %d Б) краћи од тражене величине %d Б",
+			len(chain), bps, size,
+		)
+	}
+
+	out := make([]byte, 0, size)
+	remaining := int(size)
+	for _, sectorIdx := range chain {
+		if remaining <= 0 {
+			break
+		}
+		block, err := da.GetEntry(fs.Path, fs.SuperBlock, int(sectorIdx))
+		if err != nil {
+			return nil, err
+		}
+		take := bps
+		if take > remaining {
+			take = remaining
+		}
+		out = append(out, block.Content[:take]...)
+		remaining -= take
+	}
+
+	return out, nil
+}
+
+// WriteBlob writes `data` into the FAT chain rooted at fatEntryNo, one
+// sector at a time. The final sector is **explicitly zero-padded**: stale
+// bytes from previous writes (or from this function's own per-sector buffer)
+// never leak onto disk. This is the property the encrypted blob writer
+// relies on, the AEAD tag has no slack for trailing garbage.
+//
+// Returns an error if `data` exceeds what the existing FAT chain can hold;
+// callers (e.g. CopyEncryptedFileIn) must AllocateFATEntry with the right
+// sector count beforehand.
+func (da *DataArea) WriteBlob(fs *Filesystem, fatEntryNo uint32, data []byte) error {
+	chain, err := fs.FileAllocationTable.GetEntryChain(fatEntryNo, fs.Path, fs.SuperBlock)
+	if err != nil {
+		return err
+	}
+
+	bps := int(fs.SuperBlock.BytesPerSector)
+	if uint64(len(chain))*uint64(bps) < uint64(len(data)) {
+		return fmt.Errorf(
+			"ТДД ланац (%d сектора пута %d Б) премали за податак од %d Б",
+			len(chain), bps, len(data),
+		)
+	}
+
+	fsFile, err := os.OpenFile(fs.Path, os.O_WRONLY, 0640)
+	if err != nil {
+		return err
+	}
+	defer fsFile.Close()
+
+	dataAreaOffset := BOOTLOADER_SIZE + SUPERBLOCK_SIZE +
+		(int(fs.SuperBlock.TotalFSEntries) * FSENTRY_SIZE) +
+		(int(fs.SuperBlock.TotalSectors) * FATENTRY_SIZE)
+
+	written := 0
+	for _, sectorIdx := range chain {
+		// Fresh buffer per sector: make() zeroes it, so any leftover slack
+		// in the final sector is unambiguously 0x00, not undefined memory
+		// like the file-streaming WriteEntry path.
+		buf := make([]byte, bps)
+		remaining := len(data) - written
+		if remaining > 0 {
+			n := remaining
+			if n > bps {
+				n = bps
+			}
+			copy(buf, data[written:written+n])
+			written += n
+		}
+
+		blockOffset := dataAreaOffset + int(sectorIdx)*bps
+		if _, err := fsFile.Seek(int64(blockOffset), 0); err != nil {
+			return err
+		}
+		if _, err := fsFile.Write(buf); err != nil {
+			return fmt.Errorf("не могу уписати податак у блок: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (da *DataArea) AllocateDataArea(fs *Filesystem) error {
 	// open the fs file for writing
 	fsFile, err := os.OpenFile(fs.Path, os.O_WRONLY, 0640)

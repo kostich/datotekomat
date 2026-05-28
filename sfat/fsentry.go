@@ -14,6 +14,8 @@ var FSENTRY_SIZE = FILENAME_LENGTH + 4*3 + 1*4 + 2*2 + 4 + 14*3
 var TYPE_FILE = byte(0x01)
 var TYPE_FOLDER = byte(0x02)
 var TYPE_LINK = byte(0x03)
+var TYPE_ENCRYPTED = byte(0x04)
+
 var TYPE_ANY = byte(0xFF)
 
 type FSEntry struct { // 128 bytes in total
@@ -49,6 +51,8 @@ func humanReadableFileType(ftype byte) (res string) {
 		res = "фасцикла"
 	case TYPE_LINK:
 		res = "веза"
+	case TYPE_ENCRYPTED:
+		res = "шифровано"
 	default:
 		res = "непознато"
 	}
@@ -410,6 +414,8 @@ func (fs *Filesystem) FindFSEntryNumber(entryPath string, ftype byte) (uint32, e
 			switch ftype {
 			case TYPE_FILE, TYPE_LINK:
 				return 0, fmt.Errorf("непостојећа датотека или веза „%v“", entryPath)
+			case TYPE_ENCRYPTED:
+				return 0, fmt.Errorf("непостојећа шифрована датотека „%v“", entryPath)
 			case TYPE_FOLDER:
 				return 0, fmt.Errorf("непостојећа фасцикла „%v“", entryPath)
 			default:

@@ -121,6 +121,44 @@ Flags for `фмт`:
 датотекомат кпс /hello.txt ./extracted.txt myfs.img
 ```
 
+`кпс` only opens plain `TYPE_FILE` entries; for encrypted entries use `кшс`.
+
+#### Encrypt and copy a file in (`кшу`)
+
+Prompts twice for a passphrase, derives a 32-byte key with scrypt
+(N=32768, r=8, p=1), encrypts with XChaCha20-Poly1305, and stores the
+self-describing blob inside `fs_file` as a `TYPE_ENCRYPTED` (0x04) entry.
+
+```bash
+датотекомат кшу <local_file> <internal_path> <fs_file>
+датотекомат кшу secret.txt / myfs.img
+# → Лозинка за шифровање: ******
+# → Поновите лозинку:     ******
+```
+
+Requires `BytesPerSector >= 512`, format the image with `-бпс 512` or
+larger. No `-л` flag, no `DATOTEKOMAT_LOZINKA` environment variable: the
+prompt is the only way to supply a passphrase, to keep secrets out of
+shell history and the `ps` listing.
+
+#### Decrypt and copy a file out (`кшс`)
+
+Prompts once for the passphrase. CRC32 of the on-disk blob is checked
+**before** AEAD decryption so corruption is distinguishable from a wrong
+passphrase.
+
+```bash
+датотекомат кшс <internal_path> <external_path> <fs_file>
+датотекомат кшс /secret.txt ./out.txt myfs.img
+# → Лозинка за дешифровање: ******
+```
+
+See [`ENCRYPTION.md`](./ENCRYPTION.md) for the exact on-disk layout and a golden
+test vector you can use to port the decoder to another language.
+
+For a step-by-step live demo (format, plain vs encrypted copy, verify on
+disk), see [`../test/setup.txt`](../test/setup.txt).
+
 #### List directory contents (`лс`)
 
 ```bash
@@ -245,6 +283,11 @@ Time format: `dd.mm.yyyy-hh:mm:ss`.
 - **Files** (0x01): Regular files with data
 - **Folders** (0x02): Directories containing other entries
 - **Links** (0x03): Symbolic links pointing to other entries
+- **Encrypted files** (0x04): XChaCha20-Poly1305 + scrypt blobs;
+  managed by `кшу`/`кшс`, listed with the prefix `ш`. The FSEntry's
+  `Size` and `Checksum` describe the on-disk blob, not the plaintext.
+  All other commands (`лс`, `обш`, `пнј`, `прист`, `иб`, `врм`) work
+  without a passphrase since they only touch metadata.
 
 ### Entry Metadata (128 bytes per entry)
 
@@ -261,8 +304,15 @@ Time format: `dd.mm.yyyy-hh:mm:ss`.
 - **Max filename**: 62 bytes (62 ASCII chars or ~31 UTF-8 chars); `?` is reserved
 - **Max sectors**: ~4 billion (uint32), practically much less
 - **Folders must be empty** before deletion; root folder cannot be deleted
-- **One FSEntry** consumed per file, folder, or link
-- **No fragmentation management**, journaling, compression, or encryption
+- **One FSEntry** consumed per file, folder, link, or encrypted file
+- **No fragmentation management**, journaling, or compression
+- **Encryption is selective** (per-file, like eCryptfs), not whole-volume.
+  Filenames, sizes, timestamps and permissions remain visible, see
+  threat model in [`ENCRYPTION.md`](./ENCRYPTION.md). Encryption requires
+  `BytesPerSector >= 512`.
+- **No atomicity guarantee** across superblock / FAT / FSEntry writes
+  (pre-existing for `кпу`/`кшу`): a crash mid-copy may leave a small
+  inconsistency. No `fsck` is shipped.
 
 ### Advantages
 
@@ -400,6 +450,41 @@ go build
 датотекомат кпс /здраво.ткт ./извучено.ткт мојсд.слк
 ```
 
+Поднаредба `кпс` отвара само обичне `TYPE_FILE` ставке, за шифроване користите `кшс`.
+
+#### Шифровано копирање унутар (`кшу`)
+
+Двапут пита за лозинку, изводи 32-бајтни кључ scrypt-ом (N=32768, r=8,
+p=1), шифрује XChaCha20-Poly1305 и складишти самоописни блок у
+`систем_датотека` као СД ставку типа `TYPE_ENCRYPTED` (0x04).
+
+```bash
+датотекомат кшу <локална_датотека> <унутрашња_путања> <систем_датотека>
+датотекомат кшу тајна.ткт / мојсд.слк
+# → Лозинка за шифровање: ******
+# → Поновите лозинку:     ******
+```
+
+Захтева `бајтова по сектору >= 512`, форматирајте са `-бпс 512` или већим.
+Интерактивни упит је једини начин уноса лозинке зарад веће безбедности.
+
+#### Шифровано копирање споља (`кшс`)
+
+Једном пита за лозинку. CRC32 блока се проверава **пре** дешифровања, тако
+да се оштећење разликује од погрешне лозинке.
+
+```bash
+датотекомат кшс <унутрашња_путања> <спољна_путања> <систем_датотека>
+датотекомат кшс /тајна.ткт ./отворено.ткт мојсд.слк
+# → Лозинка за дешифровање: ******
+```
+
+Тачан распоред бајтова на диску и златни тест вектор описани су у
+[`ENCRYPTION.md`](./ENCRYPTION.md), довољно за пренос декодера у други језик.
+
+За живи приказ корак по корак (форматирање, обична и шифрована датотека,
+провера на диску) погледајте [`../test/setup.txt`](../test/setup.txt).
+
 #### Листање садржаја (`лс`)
 
 ```bash
@@ -524,6 +609,11 @@ go build
 - **Датотеке** (0x01): Обичне датотеке са подацима
 - **Фасцикле** (0x02): Фасцикле које садрже друге ставке
 - **Везе** (0x03): Симболичке везе ка другим ставкама
+- **Шифроване датотеке** (0x04): XChaCha20-Poly1305 + scrypt блокови;
+  њима управљају наредбе `кшу` и `кшс`, а у листингу су означене са `ш`.
+  Поља `Size` и `Checksum` у СД ставци описују блок на диску, не отворени
+  текст. Остале наредбе (`лс`, `обш`, `пнј`, `прист`, `иб`, `врм`) раде
+  без лозинке јер додирују само метаподатке.
 
 ### Метаподаци ставке (128 бајтова по ставки)
 
@@ -540,8 +630,14 @@ go build
 - **Највећи назив**: 62 бајтова (62 ASCII знака или ~31 UTF-8 знак); `?` је резервисан
 - **Највише сектора**: ~4 милијарде (uint32), практично знатно мање
 - **Фасцикле морају бити празне** пре брисања; коренска фасцикла не може бити обрисана
-- **Једна СД ставка** по датотеци, фасцикли или вези
-- **Без управљања фрагментацијом**, журнала, компресије или шифровања
+- **Једна СД ставка** по датотеци, фасцикли, вези или шифрованој датотеци
+- **Без управљања фрагментацијом**, журнала или компресије
+- **Шифровање је селективно** (на нивоу датотеке, попут eCryptfs-а), не
+  целог тома. Називи, величине, временске ознаке и овлашћења остају
+  видљиви. Шифровање захтева `Бајтова по сектору >= 512`.
+- **Без гаранције атомичности** упис(а) супер-блока / ТДД / СД ставке
+  (важи и за `кпу` и за `кшу`): пад у току копирања може оставити малу
+  неконзистентност. `fsck` алат није у понуди.
 
 ### Предности
 
