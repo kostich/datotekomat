@@ -172,8 +172,6 @@ func runCopyEncOut(args []string) {
 }
 
 // promptPassphrase reads a passphrase from the terminal without echo.
-// Refuses to operate on a non-TTY stdin: piping a password through stdin
-// would defeat the whole reason we don't accept it via flag or env.
 // An empty string is rejected before scrypt does any work, pressing
 // Enter accidentally must not encrypt a file with key = scrypt("").
 func promptPassphrase(prompt string) (string, error) {
@@ -325,7 +323,7 @@ func printHelp() {
 	fmt.Println("    време: дд.мм.гггг-чч:мм:сс")
 	fmt.Println()
 	fmt.Println("Шифровање:")
-	fmt.Println("  - „кшу“ и „кшс“ траже лозинку интерактивно (без -л и без променљивих окружења)")
+	fmt.Println("  - „кшу“ и „кшс“ траже лозинку интерактивно")
 	fmt.Println("  - захтева бар 512 бајтова по сектору (-бпс 512 при форматирању)")
 	fmt.Println("  - све остале наредбе (лс, обш, пнј, прист, иб, врм) раде на шифрованим ставкама без лозинке")
 }
