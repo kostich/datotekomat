@@ -456,7 +456,7 @@ func readFSDetails(fs *sfat.Filesystem) {
 }
 
 func copyFileIn(filePath, folderPath, fsPath string) {
-	printVerbose(fmt.Sprintf("копирам датотеку \"%v\" у систем датотека \"%v\"", filePath, fsPath))
+	printVerbose(fmt.Sprintf("копирам датотеку „%v“ у систем датотека „%v“", filePath, fsPath))
 
 	timestamp := sfat.TimeToBytes(time.Now())
 	if cfg.testTime {
